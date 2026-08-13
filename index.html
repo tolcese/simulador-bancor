@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estimador Bancor</title>
+<title>Simulador BANCOR</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23005F5A'/%3E%3Ctext x='50' y='73' font-family='Segoe UI,Arial,sans-serif' font-size='66' font-weight='700' text-anchor='middle' fill='%23ffffff'%3EB%3C/text%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
@@ -211,23 +212,62 @@
   function soloDigitos(s){ return (s||'').replace(/\D/g,''); }
   function fmt(n){ return Number(n).toLocaleString('es-AR'); }
 
+  /* Interpreta un valor pegado/escrito en formato AR (punto=miles, coma=decimal)
+     y devuelve un Number, conservando los decimales (sin redondear). */
+  function parseAR(s){
+    if(s == null) return 0;
+    s = String(s).replace(/[^\d.,]/g,'');
+    if(!s) return 0;
+    if(s.includes(',')){                    // hay coma -> es el separador decimal
+      s = s.replace(/\./g,'').replace(',', '.');
+    }else{                                   // sin coma -> los puntos son de miles
+      s = s.replace(/\./g,'');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  /* Reformatea lo que escribe/pega el usuario: miles con punto y conserva
+     la parte decimal tal cual (sin redondear ni truncar). */
+  function formatARInput(raw){
+    if(raw == null) return '';
+    let s = String(raw).replace(/[^\d.,]/g,'');
+    if(!s) return '';
+    let entero, dec = null;
+    if(s.includes(',')){
+      const p = s.split(',');
+      entero = p[0].replace(/\./g,'').replace(/\D/g,'');
+      dec = p.slice(1).join('').replace(/\D/g,'');   // todos los dígitos tras la 1ra coma
+    }else{
+      entero = s.replace(/\./g,'').replace(/\D/g,'');
+    }
+    if(entero === '' && dec === null) return '';
+    let out = entero ? Number(entero).toLocaleString('es-AR') : '0';
+    if(dec !== null) out += ',' + dec;   // conserva la coma aunque esté vacía (mientras se tipea)
+    return out;
+  }
+
+  /* Formatea un número a pesos AR conservando hasta 2 decimales (sin forzar ,00). */
+  function fmtMoney(n){
+    return Number(n).toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:2});
+  }
+
   /* ---------- Monto solicitado + cálculo del descuento ---------- */
   function onMonto(){
     const inp = document.getElementById('montoSolicitado');
-    const dig = soloDigitos(inp.value);
-    inp.value = dig ? fmt(dig) : '';
+    inp.value = formatARInput(inp.value);
     calcular();
   }
   function calcular(){
-    const monto = parseInt(soloDigitos(document.getElementById('montoSolicitado').value) || '0', 10);
+    const monto = parseAR(document.getElementById('montoSolicitado').value);
     const pct = parseFloat((document.getElementById('pct').value || '0').replace(',', '.')) || 0;
     const finalEl = document.getElementById('montoFinal');
     const noteEl  = document.getElementById('descNote');
     if(!monto){ finalEl.textContent = '$ —'; noteEl.textContent = ''; return; }
-    const descuento = Math.round(monto * pct / 100);
+    const descuento = monto * pct / 100;          // sin redondear
     const final = monto - descuento;
-    finalEl.textContent = '$ ' + fmt(final);
-    noteEl.textContent = 'Se descuenta ' + (pct % 1 === 0 ? pct : pct) + '% ($ ' + fmt(descuento) + ')';
+    finalEl.textContent = '$ ' + fmtMoney(final);
+    noteEl.textContent = 'Se descuenta ' + String(pct).replace('.', ',') + '% ($ ' + fmtMoney(descuento) + ')';
   }
 
   /* ---------- Presets de descuento ---------- */
@@ -271,7 +311,7 @@
     document.getElementById('tbodyCuotas').appendChild(tr);
   }
   function soloNum(el){ el.value = soloDigitos(el.value); }
-  function fmtImporte(el){ const d = soloDigitos(el.value); el.value = d ? fmt(d) : ''; }
+  function fmtImporte(el){ el.value = formatARInput(el.value); }
 
   /* ---------- Vista cliente ---------- */
   function marcarVacias(){
